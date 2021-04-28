@@ -17,7 +17,7 @@ end
 
 function loadjson(filename, normstring=normstring; textkey="text", labelkey=nothing)
     corpus = []
-    labels = String[]
+    labels = []
 
     for line in readlines(filename)
         d = JSON3.read(line)
