@@ -1,0 +1,137 @@
+using TextClassification
+using LIBLINEAR, KNearestCenters
+
+include("utils.jl")
+include("commands.jl")
+
+function help_and_exit()
+    println("""
+usage: ARGS julia --project=. run.jl (test|train|predict|scores)
+
+test command:
+    Runs a full test procedure (training, predicting and scoring).
+    
+    arguments:
+        params=[configuration file from search models, it will use the best config]
+        train=[training dataset]
+        test=[test dataset]
+        nick=[filename prefix to output *all* files]
+
+train command:
+    Creates a model from a configuration and a given configuration
+    
+    arguments:
+        model=[filename to output model]
+        params=[configuration file from search models, it will use the best config]
+        train=[training dataset]
+
+predict command:
+    Applies a model to a set of messages
+
+    arguments:
+        model=[filename containing the model]
+        test=[test dataset]
+        pred=[predictions output filename]
+
+scores command:
+    Computes several quality scores for prediction using a gold standard
+
+    arguments:
+        pred=[filename with the predictions]
+        gold=[filename with the goldstandard]
+        scores=[output filename for the scores]
+    """)
+
+    exit(0)
+end
+
+function predict(model::MicroTC, test, predictedfile, textkey, labelkey)
+    ypred = predict_corpus(model, test.corpus)
+    open(predictedfile, "w") do f
+        for (message, label) in zip(test.corpus, ypred)
+            println(f, JSON3.write(Dict(textkey => message, labelkey => label)))
+        end
+    end
+
+    ypred
+end
+
+function predict(modelfile::AbstractString, testfile::AbstractString, predictedfile, textkey, labelkey)
+    model = loadmodel(modelfile)
+    D = loadjson(testfile; textkey, labelkey)
+    predict(model, D, predictedfile, textkey, labelkey)
+end
+
+function create_model(paramsfile::AbstractString, trainfile::AbstractString, modelfile, textkey, labelkey)
+    params = loadparams(paramsfile)
+    D = loadjson(trainfile; textkey=textkey, labelkey=labelkey)
+    run_train(D, params[1][1], modelfile)
+end
+
+function run_scores(ygold::AbstractVector, ypred::AbstractVector, scoresfile)
+    scores = classification_scores(ypred, ygold)
+
+    open(scoresfile, "w") do f
+        s = JSON3.write(scores)
+        println(stdout, s)
+        println(f, s)
+    end
+end
+
+function run_scores(gold::AbstractString, predicted::AbstractString, scoresfile, textkey, labelkey)
+    ygold = loadjson(gold; textkey, labelkey)
+    ypred = loadjson(predicted; textkey, labelkey)
+    run_scores(ygold.labels, ypred.labels, scoresfile)
+end
+
+function run_test(paramsfile, trainfile, testfile, nick)
+    train = loadjson(trainfile; textkey=textkey, labelkey=labelkey)
+    test = loadjson(testfile; textkey=textkey, labelkey=labelkey)
+    params = loadparams(paramsfile)
+    modelfile = nick * ".model"
+    predictedfile = nick * ".predicted"
+    scoresfile = nick * ".scores"
+    model = run_train(train, params[1][1], modelfile)
+    ypred = predict(model, test, predictedfile, textkey, labelkey)
+    scores = run_scores(test.labels, ypred, scoresfile)
+end
+
+if !isinteractive()
+    command = nothing
+    if length(ARGS) > 0
+        command = ARGS[1]
+    end
+
+    command === nothing && help_and_exit() 
+
+    textkey = get(ENV, "text", "text")
+    labelkey = get(ENV, "klass", "klass")
+
+    if command == "test"
+        paramsfile = ENV["params"]
+        trainfile = ENV["train"]
+        testfile = ENV["test"]
+        nick = get(ENV, "nick", nothing)
+        if nick === nothing
+            nick = "__" * replace(basename(paramsfile), ".params" => "")
+        end       
+        run_test(paramsfile, trainfile, testfile, nick)
+    elseif command == "train"
+        modelfile = ENV["model"]
+        paramsfile = ENV["params"]
+        trainfile = ENV["train"]
+        create_model(paramsfile, trainfile, modelfile, textkey, labelkey)
+    elseif command == "predict"
+        modelfile = ENV["model"]
+        testfile = ENV["test"]
+        predictedfile = ENV["pred"]
+        predict(modelfile, testfile, predictedfile, textkey, labelkey)
+    elseif command == "scores"
+        predicted = ENV["pred"]
+        gold = ENV["gold"]
+        scoresfile = ENV["scores"]
+        run_scores(predicted, gold, scoresfile, textkey, labelkey)
+    else
+        help_and_exit()
+    end
+end
