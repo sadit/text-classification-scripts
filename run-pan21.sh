@@ -1,10 +1,11 @@
 #!/bin/bash
 isample=64
-method=microtc
-nick=_haha21+$method+$isample+1f1
+method=entropy
+lang=en
+nick=_pan21-$lang-$method-$isample+acc+bsize=16
 
-train=haha2021/haha_train.json
-test=haha2021/haha_dev.json
+train=pan21/train-en.json_train.json
+test=pan21/train-en.json_test.json
 procs=64
 
 export nick method train test procs isample

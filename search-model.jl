@@ -1,8 +1,9 @@
-using KCenters, KNearestCenters, TextSearch, TextClassification, SearchModels, UnicodePlots
+using KCenters, KNearestCenters, TextSearch, TextClassification, SearchModels, UnicodePlots, StatsBase
 using LIBLINEAR
 using Distributed
 
 const PROCS = parse(Int, get(ENV, "procs", "1"))
+const isample = parse(Int, get(ENV, "isample", "64"))
 
 addprocs(PROCS, exeflags="--project=.")
 
@@ -17,12 +18,14 @@ function main_search_model(nick, train, textconfig, textmodel, cls)
 
     # search hyper-parameters
     search_kwargs = Dict(
-        :initialpopulation => 64,
-        :cv => (kind=:folds, folds=3),
-        # :cv => (kind=:montecarlo, repeat=15, ratio=0.5),
+        #:score => (name=:classrecall, label=1),
+        :score => :accuracy,
+        #:cv => (kind=:folds, folds=3),
+        :cv => (kind=:montecarlo, repeat=15, ratio=0.5),
         #:cv => (kind=:montecarlo, repeat=20, ratio=0.7),
+        :initialpopulation => isample,
         :maxpopulation => 32,
-        :bsize => 4,
+        :bsize => 16,
         :mutbsize => 64,
         :crossbsize => 0,
         :tol => 0.0,
@@ -37,6 +40,7 @@ function main_search_model(nick, train, textconfig, textmodel, cls)
     !isdir(outdir) && mkdir(outdir)
     paramsfile = "$outdir/params"
     D = loadjson(train; textkey=textkey, labelkey=labelkey)
+    @info "class distribution:" countmap(D.labels)
     run_params(D, paramsfile, space, search_kwargs)
 end
 
@@ -76,7 +80,7 @@ if !isinteractive()
     vecspace = VectorModelConfigSpace()
     # classifiers = [llspace, knnspace]
     classifiers = [llspace]
-    # classifiers = [kncspace]
+    #classifiers = [kncspace]
     method = get(ENV, "method", "microtc")
     train = ENV["train"]
     nick = get(ENV, "nick", "_$(method)_" * replace(basename(train), ".json" => ""))

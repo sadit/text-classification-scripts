@@ -1,6 +1,26 @@
 using KCenters, KNearestCenters, TextSearch, TextClassification, SearchModels, UnicodePlots, StatsBase
 using LIBLINEAR
 
+function score_by_name(score, y, ypred)
+    if score === :macro_recall
+        recall_score(y, ypred, weight=:macro)
+    elseif score === :macro_f1
+        f1_score(y, ypred, weight=:macro)
+    elseif score === :accuracy
+        recall_score(y, ypred, weight=:macro)
+    elseif score isa NamedTuple
+        if score.name == :classf1
+            classification_scores(y, ypred).classf1[score.label]
+        elseif score.name == :classrecall
+            classification_scores(y, ypred).classrecall[score.label]
+        else
+            error("Unknown score $score")
+        end
+    else
+        error("Unknown score $score")
+    end
+end
+
 function search_models_for_task(D, paramsfile, space, search_kwargs; verbose=true)
     cv = pop!(search_kwargs, :cv)
 
@@ -14,16 +34,15 @@ function search_models_for_task(D, paramsfile, space, search_kwargs; verbose=tru
         error("Unknown $cv")
     end
 
+    score = pop!(search_kwargs, :score, :recall)
     initialpopulation = pop!(search_kwargs, :initialpopulation, 32)
     function error_function(config::MicroTC_Config)
         S = Float64[]
         for (itrain, itest) in partitions
             tc = MicroTC(config, D.corpus[itrain], D.labels[itrain]; verbose=true)
             ypred = predict_corpus(tc, D.corpus[itest])
-            #push!(S, recall_score(testlabels.refs, ypred, weight=:macro))
-            push!(S, recall_score(D.labels[itest], ypred))
+            push!(S, score_by_name(score, D.labels[itest], ypred))
         end
-
         s = mean(S)
         verbose && println(stderr, "score: $s, $(typeof(config)), config: $(JSON3.write(config))")
         1.0 - s
@@ -61,9 +80,9 @@ function run_params(D, paramsfile, space, search_kwargs)
     end
 end
 
-function run_train(D, config, modelfile)
+function run_train(D, config, modelfile; tok=Tokenizer(config.textconfig, invmap=nothing))
     if !isfile(modelfile)
-        cls = MicroTC(config, D.corpus, D.labels)
+        cls = MicroTC(config, D.corpus, D.labels; tok)
         savemodel(modelfile, cls)
         cls
     else
