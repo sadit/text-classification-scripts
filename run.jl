@@ -76,6 +76,8 @@ function run_scores(ygold::AbstractVector, ypred::AbstractVector, scoresfile)
         println(stdout, s)
         println(f, s)
     end
+
+    scores
 end
 
 function run_scores(gold::AbstractString, predicted::AbstractString, scoresfile, textkey, labelkey)
@@ -85,15 +87,15 @@ function run_scores(gold::AbstractString, predicted::AbstractString, scoresfile,
 end
 
 function run_test(paramsfile, trainfile, testfile, nick)
-    train = loadjson(trainfile; textkey=textkey, labelkey=labelkey)
-    test = loadjson(testfile; textkey=textkey, labelkey=labelkey)
+    traindata = loadjson(trainfile; textkey=textkey, labelkey=labelkey)
+    testdata = loadjson(testfile; textkey=textkey, labelkey=labelkey)
     params = loadparams(paramsfile)
     modelfile = nick * ".model"
     predictedfile = nick * ".predicted"
     scoresfile = nick * ".scores"
-    model = run_train(train, params[1][1], modelfile)
-    ypred = predict(model, test, predictedfile, textkey, labelkey)
-    scores = run_scores(test.labels, ypred, scoresfile)
+    model = run_train(traindata, params[1][1], modelfile)
+    ypred = predict(model, testdata, predictedfile, textkey, labelkey)
+    run_scores(testdata.labels, ypred, scoresfile)
 end
 
 if !isinteractive()

@@ -12,24 +12,24 @@ addprocs(PROCS, exeflags="--project=.")
     include("commands.jl")
 end
 
-function main_search_model(nick, train, textconfig, textmodel, cls)
+function main_search_model(nick, train, textconfig, textmodel, cls; score=:macrorecall)
     labelkey = get(ENV, "klass", "klass")
     textkey = get(ENV, "text", "text")
 
     # search hyper-parameters
     search_kwargs = Dict(
         #:score => (name=:classrecall, label=1),
-        :score => :accuracy,
-        #:cv => (kind=:folds, folds=3),
-        :cv => (kind=:montecarlo, repeat=15, ratio=0.5),
+        :score => score, # :accuracy,
+        :cv => (kind=:folds, folds=3),
+        #:cv => (kind=:montecarlo, repeat=15, ratio=0.5),
         #:cv => (kind=:montecarlo, repeat=20, ratio=0.7),
         :initialpopulation => isample,
         :maxpopulation => 32,
-        :bsize => 16,
+        :bsize => 4,
         :mutbsize => 64,
         :crossbsize => 0,
-        :tol => 0.0,
-        :maxiters => 20,
+        :tol => -1.0,
+        :maxiters => 3,
         :verbose => true,
         :parallel => (PROCS>1 ? :distributed : :none)
         #:parallel => :threads
@@ -72,25 +72,27 @@ if !isinteractive()
     knnspace = KnnClassifierConfigSpace(k=[1, 3], scale_k=nothing)
     entspace = EntModelConfigSpace(
         weights=[:balance],
-        #local_weighting=[FreqWeighting(), TpWeighting()],
+        #local_weighting=[TpWeighting()],
         #local_weighting=[BinaryLocalWeighting()],
         #scale_mindocs=nothing,
         #scale_smooth=nothing
     )
     vecspace = VectorModelConfigSpace()
-    # classifiers = [llspace, knnspace]
-    classifiers = [llspace]
-    #classifiers = [kncspace]
+    #classifiers = [llspace, knnspace]
+    #classifiers = [knnspace]
+    #classifiers = [llspace]
+    classifiers = [kncspace]
     method = get(ENV, "method", "microtc")
     train = ENV["train"]
     nick = get(ENV, "nick", "_$(method)_" * replace(basename(train), ".json" => ""))
+    score = Symbol(get(ENV, "score", "macrorecall"))
 
     if method == "entropy"
-        main_search_model(nick, train, textconfig, entspace, classifiers)
+        main_search_model(nick, train, textconfig, entspace, classifiers; score)
     elseif method == "no-entropy"
-        main_search_model(nick, train, textconfig, vecspace, classifiers)
+        main_search_model(nick, train, textconfig, vecspace, classifiers; score)
     elseif method == "microtc"
-        main_search_model(nick, train, textconfig, [vecspace, entspace], classifiers)
+        main_search_model(nick, train, textconfig, [vecspace, entspace], classifiers; score)
     else
         error("unknown method $method")
     end

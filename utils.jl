@@ -3,7 +3,6 @@ using MLDataUtils, StatsBase
 using KCenters, KNearestCenters, TextSearch, TextClassification
 
 
-
 function normstring(t)
     if occursin("&", t)
         t = replace(t, "&gt;" => ">")
@@ -13,7 +12,6 @@ function normstring(t)
 
     replace(t, r"#(USER|URL|HASHTAG)#" => p->"_" * lowercase(p[2:end-1]))
 end
-
 
 function loadjson(filename, normstring=normstring; textkey="text", labelkey=nothing)
     corpus = []

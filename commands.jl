@@ -2,9 +2,9 @@ using KCenters, KNearestCenters, TextSearch, TextClassification, SearchModels, U
 using LIBLINEAR
 
 function score_by_name(score, y, ypred)
-    if score === :macro_recall
+    if score === :macrorecall
         recall_score(y, ypred, weight=:macro)
-    elseif score === :macro_f1
+    elseif score === :macrof1
         f1_score(y, ypred, weight=:macro)
     elseif score === :accuracy
         recall_score(y, ypred, weight=:macro)
