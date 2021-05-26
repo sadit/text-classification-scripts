@@ -1,7 +1,9 @@
 #!/bin/bash
-isample=64
-method=microtc
-nick=_haha21+$method+$isample+1f1
+isample=128
+method=entropy
+score=macrof1
+bsize=4
+nick=_haha21-$method-$isample+$score+bsize=$bsize
 
 train=haha2021/haha_train.json
 test=haha2021/haha_dev.json

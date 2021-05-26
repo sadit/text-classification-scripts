@@ -1,4 +1,4 @@
-using CategoricalArrays, JSON3, Random
+using CategoricalArrays, JSON3, JLD2, Random
 using MLDataUtils, StatsBase
 using KCenters, KNearestCenters, TextSearch, TextClassification
 
@@ -32,7 +32,7 @@ function loadjson(filename, normstring=normstring; textkey="text", labelkey=noth
         end
     end
     
-    (corpus=corpus, labels=categorical(labels), filename=filename, textkey=textkey, labelkey=labelkey)
+    (corpus=corpus, labels=length(labels) > 0 ? categorical(labels) : nothing, filename=filename, textkey=textkey, labelkey=labelkey)
 end
 
 function stratified_split(labels; p=0.7, shuffle=true)
@@ -57,45 +57,4 @@ function stratified_folds(labels; folds=3, shuffle=true)
     end
 
     F
-end
-
-function savemodel(filename, data)
-    open(filename, "w") do f
-        println(f, string(typeof(data)))
-        JSON3.write(f, data)
-        println(f)
-    end
-end
-
-function loadmodel(filename)
-    open(filename, "r") do f
-        type_ = readline(f)
-        T = eval(Meta.parse(type_))
-        JSON3.read(f, T)
-    end
-end
-
-function saveparams(paramsfile, B)
-    open(paramsfile, "w") do f
-        for b in B
-            println(f, b.second, "\t", typeof(b.first), "\t", JSON3.write(b.first))
-        end
-    end
-end
-
-function loadparams(paramsfile)
-    L = []
-
-    f = open(paramsfile)
-    for line in eachline(f)
-        arr = split(line, '\t')
-        @assert length(arr) == 3
-        score, type_ = parse(Float64, arr[1]), eval(Meta.parse(arr[2]))
-        config = JSON3.read(arr[3], type_)
-        push!(L, config => score)
-    end
-
-    close(f)
-
-    L
 end

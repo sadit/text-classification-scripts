@@ -45,25 +45,33 @@ scores command:
     exit(0)
 end
 
-function predict(model::MicroTC, test, predictedfile, textkey, labelkey)
-    ypred = predict_corpus(model, test.corpus)
+function predict(model::MicroTC, D, predictedfile, textkey, labelkey; raw=false)
+    ypred = predict_corpus(model, get.(D, textkey, nothing))
     open(predictedfile, "w") do f
-        for (message, label) in zip(test.corpus, ypred)
-            println(f, JSON3.write(Dict(textkey => message, labelkey => label)))
+        if raw
+            for y in ypred
+                println(f, y)
+            end
+        else
+            for i in eachindex(D)
+                d = D[i]
+                d[labelkey] = ypred[i]
+                println(f, JSON3.write(d))
+            end
         end
     end
 
     ypred
 end
 
-function predict(modelfile::AbstractString, testfile::AbstractString, predictedfile, textkey, labelkey)
-    model = loadmodel(modelfile)
-    D = loadjson(testfile; textkey, labelkey)
-    predict(model, D, predictedfile, textkey, labelkey)
+function predict(modelfile::AbstractString, testfile::AbstractString, predictedfile, textkey, labelkey; raw=false)
+    model = load(modelfile, "model")
+    D = [JSON3.read(line, Dict) for line in eachline(testfile)]
+    predict(model, D, predictedfile, textkey, labelkey; raw=raw)
 end
 
 function create_model(paramsfile::AbstractString, trainfile::AbstractString, modelfile, textkey, labelkey)
-    params = loadparams(paramsfile)
+    params = load(paramsfile, "population")
     D = loadjson(trainfile; textkey=textkey, labelkey=labelkey)
     run_train(D, params[1][1], modelfile)
 end
@@ -89,7 +97,7 @@ end
 function run_test(paramsfile, trainfile, testfile, nick)
     traindata = loadjson(trainfile; textkey=textkey, labelkey=labelkey)
     testdata = loadjson(testfile; textkey=textkey, labelkey=labelkey)
-    params = loadparams(paramsfile)
+    params = load(paramsfile, "population")
     modelfile = nick * ".model"
     predictedfile = nick * ".predicted"
     scoresfile = nick * ".scores"
@@ -127,7 +135,7 @@ if !isinteractive()
         modelfile = ENV["model"]
         testfile = ENV["test"]
         predictedfile = ENV["pred"]
-        predict(modelfile, testfile, predictedfile, textkey, labelkey)
+        predict(modelfile, testfile, predictedfile, textkey, labelkey; raw=false)
     elseif command == "scores"
         predicted = ENV["pred"]
         gold = ENV["gold"]

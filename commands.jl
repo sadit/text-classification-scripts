@@ -1,5 +1,5 @@
-using KCenters, KNearestCenters, TextSearch, TextClassification, SearchModels, UnicodePlots, StatsBase
-using LIBLINEAR
+using KCenters, KNearestCenters, TextSearch, TextClassification, SearchModels, UnicodePlots, StatsBase, Statistics
+using LIBLINEAR, JLD2
 
 function score_by_name(score, y, ypred)
     if score === :macrorecall
@@ -7,7 +7,7 @@ function score_by_name(score, y, ypred)
     elseif score === :macrof1
         f1_score(y, ypred, weight=:macro)
     elseif score === :accuracy
-        recall_score(y, ypred, weight=:macro)
+        accuracy_score(y, ypred)
     elseif score isa NamedTuple
         if score.name == :classf1
             classification_scores(y, ypred).classf1[score.label]
@@ -45,7 +45,7 @@ function search_models_for_task(D, paramsfile, space, search_kwargs; verbose=tru
         end
         s = mean(S)
         verbose && println(stderr, "score: $s, $(typeof(config)), config: $(JSON3.write(config))")
-        1.0 - s
+        (1.0 - s, S)
     end
 
     iter = 0
@@ -55,13 +55,12 @@ function search_models_for_task(D, paramsfile, space, search_kwargs; verbose=tru
         println(stderr, "===== inspecting population iter: $iter, popsize: $(length(population))")
         filename = paramsfile * ".iter=$iter"
         println(stderr, "saving iteration to $filename")
-        saveparams(filename, population)
-        println(lineplot(last.(population), title="Error", xlabel="configurations", ylabel="error"))
+        jldsave(filename; population)
+        println(lineplot([first(last(p)) for p in population], title="Error", xlabel="configurations", ylabel="error"))
     end
 
     search_kwargs[:inspect_population] = inspect_population
-
-    best_list = search_models(space, error_function, initialpopulation; search_kwargs...)
+    best_list = search_models(space, error_function, initialpopulation; by=first, search_kwargs...)
 
     for (i, b) in enumerate(best_list)
         @info "-- perf best_lists[$i]:", b[1] => b[2]
@@ -72,26 +71,26 @@ end
 
 function run_params(D, paramsfile, space, search_kwargs)
     if !isfile(paramsfile)
-        B = search_models_for_task(D, paramsfile, space, search_kwargs)
-        saveparams(paramsfile, B)
-        B
+        population = search_models_for_task(D, paramsfile, space, search_kwargs)
+        jldsave(paramsfile; population)
+        population
     else
-        loadparams(paramsfile)
+        load(paramsfile, "population")
     end
 end
 
 function run_train(D, config, modelfile; tok=Tokenizer(config.textconfig, invmap=nothing))
     if !isfile(modelfile)
-        cls = MicroTC(config, D.corpus, D.labels; tok)
-        savemodel(modelfile, cls)
-        cls
+        model = MicroTC(config, D.corpus, D.labels; tok)
+        jldsave(modelfile; model)
+        model
     else
-        loadmodel(modelfile)
+        load(modelfile, "model")
     end
 end
 
-function run_predict(T, cls, predictedfile; textkey="text", labelkey="klass", levels_=levels(T.labels))
-    ypred = predict_corpus(cls, T.corpus)
+function run_predict(T, model, predictedfile; textkey="text", labelkey="klass", levels_=levels(T.labels))
+    ypred = predict_corpus(model, T.corpus)
     open(predictedfile, "w") do f
         for (message, ilabel) in zip(T.corpus, ypred)
             println(f, JSON3.write(Dict(textkey => message, labelkey => levels_[ilabel])))

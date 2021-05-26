@@ -15,21 +15,22 @@ end
 function main_search_model(nick, train, textconfig, textmodel, cls; score=:macrorecall)
     labelkey = get(ENV, "klass", "klass")
     textkey = get(ENV, "text", "text")
+    bsize = parse(Int, get(ENV, "bsize", "4"))
 
     # search hyper-parameters
     search_kwargs = Dict(
         #:score => (name=:classrecall, label=1),
         :score => score, # :accuracy,
-        :cv => (kind=:folds, folds=3),
+        #:cv => (kind=:folds, folds=5),
         #:cv => (kind=:montecarlo, repeat=15, ratio=0.5),
-        #:cv => (kind=:montecarlo, repeat=20, ratio=0.7),
+        :cv => (kind=:montecarlo, repeat=10, ratio=0.7),
         :initialpopulation => isample,
         :maxpopulation => 32,
-        :bsize => 4,
+        :bsize => bsize,
         :mutbsize => 64,
         :crossbsize => 0,
-        :tol => -1.0,
-        :maxiters => 3,
+        :tol => 0.001,
+        :maxiters => 20,
         :verbose => true,
         :parallel => (PROCS>1 ? :distributed : :none)
         #:parallel => :threads
@@ -53,7 +54,7 @@ if !isinteractive()
         group_url=[true, false],
         group_usr=[true, false],
         group_emo=[true, false],
-        lc=[true, false],
+        lc=[true],
         qlist=[[3], [3, 5], [3, 7], []],
         nlist=[[1], [1, 2], [2], [1, 2, 3], []],
         slist=[[Skipgram(2,1)], []],
@@ -80,8 +81,8 @@ if !isinteractive()
     vecspace = VectorModelConfigSpace()
     #classifiers = [llspace, knnspace]
     #classifiers = [knnspace]
-    #classifiers = [llspace]
-    classifiers = [kncspace]
+    classifiers = [llspace]
+    #classifiers = [kncspace]
     method = get(ENV, "method", "microtc")
     train = ENV["train"]
     nick = get(ENV, "nick", "_$(method)_" * replace(basename(train), ".json" => ""))
